@@ -3,36 +3,31 @@ name: Build Android APK
 on:
   push:
     branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        # Disabling cache to bypass the current GitHub service outage
-        cache: ''
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
 
-    - name: Change wrapper permissions
-      run: chmod +x gradlew || true
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.1.1
 
-    - name: Build with Gradle
-      run: gradle assembleDebug --stacktrace --no-daemon
+      - name: Build APK
+        # This uses the gradle version we just installed above
+        run: gradle assembleDebug --stacktrace --no-daemon
 
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: allergen-shield-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: allergen-shield-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
