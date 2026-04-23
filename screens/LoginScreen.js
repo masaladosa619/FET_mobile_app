@@ -88,6 +88,7 @@ export default function LoginScreen({ navigation }) {
           <View style={styles.iconCircle}>
             <ShieldCheck color="#10B981" size={36} />
           </View>
+          <Text style={styles.appName}>SAFEPLATE</Text>
           <Text style={styles.title}>Welcome Back</Text>
           <Text style={styles.subtitle}>Securely check your food for allergens</Text>
         </View>
@@ -215,11 +216,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  title: {
+  appName: {
     fontSize: 28,
     fontWeight: '900',
-    color: '#1E293B',
+    color: '#10B981',
     letterSpacing: -0.5,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 2,
   },
   subtitle: {
     fontSize: 14,

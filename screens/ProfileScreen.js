@@ -11,7 +11,7 @@ const ALLERGEN_ICONS = {
   Gluten: Wheat,
 };
 
-export default function ProfileScreen({ navigation, selectedAllergies, setSelectedAllergies }) {
+export default function ProfileScreen({ navigation, selectedAllergies, setSelectedAllergies, scanHistory = [] }) {
   const toggleAllergy = (allergy) => {
     if (selectedAllergies.includes(allergy)) {
       setSelectedAllergies(selectedAllergies.filter((a) => a !== allergy));
@@ -19,6 +19,9 @@ export default function ProfileScreen({ navigation, selectedAllergies, setSelect
       setSelectedAllergies([...selectedAllergies, allergy]);
     }
   };
+
+  const totalScans = scanHistory.length;
+  const alertCount = scanHistory.filter(item => item.isDanger).length;
 
   return (
     <View style={styles.container}>
@@ -48,12 +51,12 @@ export default function ProfileScreen({ navigation, selectedAllergies, setSelect
 
           <View style={styles.miniStats}>
             <View style={styles.miniStatItem}>
-              <Text style={styles.miniStatVal}>24</Text>
+              <Text style={styles.miniStatVal}>{totalScans}</Text>
               <Text style={styles.miniStatLab}>Total Scans</Text>
             </View>
             <View style={styles.miniStatDivider} />
             <View style={styles.miniStatItem}>
-              <Text style={styles.miniStatVal}>2</Text>
+              <Text style={styles.miniStatVal}>{alertCount}</Text>
               <Text style={styles.miniStatLab}>Alerts</Text>
             </View>
           </View>
@@ -77,9 +80,21 @@ export default function ProfileScreen({ navigation, selectedAllergies, setSelect
             <Info color="#F59E0B" size={18} />
             <Text style={styles.alertCardText}>New: Dairy-free Cheese guide</Text>
           </View>
+          <View style={[styles.alertCard, { backgroundColor: '#EFF6FF' }]}>
+            <ShieldCheck color="#3B82F6" size={18} />
+            <Text style={styles.alertCardText}>Policy: Sesame is now a Major Allergen</Text>
+          </View>
+          <View style={[styles.alertCard, { backgroundColor: '#F0FDF4' }]}>
+            <Info color="#10B981" size={18} />
+            <Text style={styles.alertCardText}>Update: 5 New Safe-Restaurants added</Text>
+          </View>
+          <View style={[styles.alertCard, { backgroundColor: '#F5F3FF' }]}>
+            <AlertCircle color="#8B5CF6" size={18} />
+            <Text style={styles.alertCardText}>Hidden: Soy found in 'GF' Flour brand</Text>
+          </View>
         </ScrollView>
 
-        <Text style={styles.sectionTitle}>Biological Profile</Text>
+        <Text style={[styles.sectionTitle, { marginTop: -10 }]}>Biological Profile</Text>
         <Text style={styles.sectionSub}>Select active allergens for AI monitoring</Text>
         
         <View style={styles.allergyGrid}>
@@ -159,7 +174,7 @@ const styles = StyleSheet.create({
 
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
   sectionTitle: { fontSize: 22, fontWeight: '900', color: '#1E293B', letterSpacing: -0.5 },
-  sectionSub: { fontSize: 14, color: '#64748B', marginTop: -10, marginBottom: 20 },
+  sectionSub: { fontSize: 14, color: '#64748B', marginBottom: 20 },
   liveIndicator: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
   liveText: { fontSize: 11, fontWeight: '900', color: '#EF4444' },

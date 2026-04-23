@@ -27,6 +27,7 @@ export default function App() {
                 {...props}
                 selectedAllergies={selectedAllergies}
                 setSelectedAllergies={setSelectedAllergies}
+                scanHistory={scanHistory}
               />
             )}
           </Stack.Screen>

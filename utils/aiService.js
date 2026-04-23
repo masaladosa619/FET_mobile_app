@@ -1,7 +1,48 @@
-import { detectAllergens } from "./allergenData";
+import { detectAllergens, ALLERGENS } from "./allergenData";
 
 /**
- * Barcode and Analysis logic remains the same
+ * Knowledge base of common dishes and their hidden allergens
+ */
+const DISH_KNOWLEDGE = {
+  "butter chicken": {
+    culprits: ["butter", "cream"],
+    allergen: "Dairy",
+    explanation: "Butter chicken is prepared with heavy cream and butter to give it its signature texture."
+  },
+  "cheese pizza": {
+    culprits: ["mozzarella cheese", "wheat flour"],
+    allergen: "Dairy, Gluten",
+    explanation: "The base is made of wheat flour (Gluten) and the topping is heavy on mozzarella (Dairy)."
+  },
+  "pesto": {
+    culprits: ["pine nuts", "parmesan cheese"],
+    allergen: "Nuts, Dairy",
+    explanation: "Traditional pesto uses pine nuts for crunch and parmesan for saltiness."
+  },
+  "soy sauce": {
+    culprits: ["wheat"],
+    allergen: "Gluten",
+    explanation: "Most commercial soy sauces are brewed with wheat as a primary ingredient."
+  },
+  "pancakes": {
+    culprits: ["milk", "flour", "butter"],
+    allergen: "Dairy, Gluten",
+    explanation: "The batter consists of milk and wheat flour, and they are often cooked in butter."
+  },
+  "bread": {
+    culprits: ["wheat flour"],
+    allergen: "Gluten",
+    explanation: "Standard bread is made from wheat flour which contains high levels of gluten."
+  },
+  "muesli": {
+    culprits: ["oats", "almonds", "hazelnuts"],
+    allergen: "Gluten, Nuts",
+    explanation: "Muesli typically contains a mix of grains (Gluten) and various tree nuts."
+  }
+};
+
+/**
+ * Barcode and Analysis logic
  */
 export const getIngredientsByBarcode = async (barcode) => {
   try {
@@ -26,7 +67,7 @@ export const analyzeBarcodeResult = async (ingredients, selectedAllergies) => {
 };
 
 /**
- * SMART SWAPS: Provides safe alternatives for dangerous ingredients
+ * SMART SWAPS
  */
 const SWAP_DATABASE = {
   "Nuts": {
@@ -45,21 +86,35 @@ const SWAP_DATABASE = {
 
 export const getSafeSwap = (detectedAllergens) => {
   if (!detectedAllergens || detectedAllergens.length === 0) return null;
-  // Get the first detected allergen's swap
   const mainAllergen = detectedAllergens[0];
   return SWAP_DATABASE[mainAllergen] || null;
 };
 
 /**
- * Local AI Chatbot Logic
+ * Hardcoded Chatbot Logic with Elaboration
  */
 export const getChatResponse = async (userInput, selectedAllergies) => {
-  await new Promise(resolve => setTimeout(resolve, 800));
-  const input = userInput.toLowerCase();
-  const allergies = Array.isArray(selectedAllergies) ? selectedAllergies : [];
+  await new Promise(resolve => setTimeout(resolve, 600));
   
-  if (detected.length > 0) {
-    return `WARNING: I detected ${detected.join(", ")}. Matches your profile.`;
+  const inputLower = userInput.toLowerCase();
+  let explanation = "";
+  
+  // Check for specific dishes in our knowledge base
+  for (const [dish, data] of Object.entries(DISH_KNOWLEDGE)) {
+    if (inputLower.includes(dish)) {
+      const relevantAllergens = data.allergen.split(", ").filter(a => selectedAllergies.includes(a));
+      
+      if (relevantAllergens.length > 0) {
+        return `⚠️ WARNING: This dish contains ${relevantAllergens.join(" and ")}. Specifically, the ${data.culprits.join(" and ")} in ${dish} causes allergies. ${data.explanation} Since you are allergic to these, it is harmful for you!`;
+      }
+    }
   }
-  return `Analyzed "${userInput}". Appears safe based on common ingredients.`;
+
+  // Fallback to general keyword detection
+  const detected = detectAllergens(userInput, selectedAllergies);
+  if (detected.length > 0) {
+    return `⚠️ WARNING: I detected ${detected.join(", ")} in your request. This matches your profile and is harmful for you!`;
+  }
+  
+  return `Based on your request "${userInput}", I don't see any of your selected allergens (${selectedAllergies.join(", ") || "None"}). It appears safe to eat!`;
 };

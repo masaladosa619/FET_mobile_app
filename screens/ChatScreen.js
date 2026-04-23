@@ -52,12 +52,17 @@ export default function ChatScreen({ navigation, selectedAllergies: profileAller
       setMessages(prev => [...prev, botMessage]);
       setLoading(false);
     } else {
-      const allergiesToUse = userAllergies || profileAllergies.join(', ') || "Everything";
-      botResponse = await getChatResponse(currentInput, allergiesToUse.split(', '));
-      
-      const botMessage = { id: Date.now() + 1, text: botResponse, isBot: true };
-      setMessages(prev => [...prev, botMessage]);
-      setLoading(false);
+      try {
+        const allergiesToUse = userAllergies || (profileAllergies && profileAllergies.length > 0 ? profileAllergies.join(', ') : "none");
+        botResponse = await getChatResponse(currentInput, allergiesToUse.split(', '));
+      } catch (error) {
+        console.error("Chat Error:", error);
+        botResponse = "Oops! I encountered an error while thinking. Please try again.";
+      } finally {
+        const botMessage = { id: Date.now() + 1, text: botResponse, isBot: true };
+        setMessages(prev => [...prev, botMessage]);
+        setLoading(false);
+      }
     }
   };
 
