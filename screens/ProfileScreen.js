@@ -1,149 +1,233 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions, ScrollView } from 'react-native';
-import { Milk, Nut, Wheat, ArrowRight, Bot, Clock, AlertCircle, ShieldCheck, Info, Globe, LayoutDashboard } from 'lucide-react-native';
-import { ALLERGENS } from '../utils/allergenData';
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  Pressable, 
+  Dimensions, 
+  ScrollView, 
+  TextInput, 
+  Alert, 
+  ActivityIndicator,
+  Image
+} from 'react-native';
+import { Camera, User, Mail, Calendar, Info, LogOut, ChevronRight, Save, Shield, Moon, Sun, Users, Plus, X } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db, auth } from '../firebaseConfig';
+import { signOut } from 'firebase/auth';
+import { useTheme } from '../utils/ThemeContext';
+import { Skeleton } from '../utils/Skeleton';
 
 const { width } = Dimensions.get('window');
 
-const ALLERGEN_ICONS = {
-  Nuts: Nut,
-  Dairy: Milk,
-  Gluten: Wheat,
-};
+export default function ProfileScreen({ navigation, user }) {
+  const { theme, themeMode, toggleTheme } = useTheme();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [newDependentName, setNewDependentName] = useState('');
+  
+  const [profileData, setProfileData] = useState({
+    displayName: '',
+    age: '',
+    medicalNotes: '',
+    photoURL: null,
+    dependents: []
+  });
 
-export default function ProfileScreen({ navigation, selectedAllergies, setSelectedAllergies, scanHistory = [] }) {
-  const toggleAllergy = (allergy) => {
-    if (selectedAllergies.includes(allergy)) {
-      setSelectedAllergies(selectedAllergies.filter((a) => a !== allergy));
-    } else {
-      setSelectedAllergies([...selectedAllergies, allergy]);
+  useEffect(() => {
+    loadProfile();
+  }, [user]);
+
+  const loadProfile = async () => {
+    if (!user) return;
+    try {
+      const docRef = doc(db, 'users', user.uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setProfileData({
+          displayName: data.displayName || '',
+          age: data.age || '',
+          medicalNotes: data.medicalNotes || '',
+          photoURL: data.photoURL || null,
+          dependents: data.dependents || []
+        });
+      }
+    } catch (error) {
+      console.error("Error loading profile:", error);
+    } finally {
+      setTimeout(() => setLoading(false), 1200);
     }
   };
 
-  const totalScans = scanHistory.length;
-  const alertCount = scanHistory.filter(item => item.isDanger).length;
+  const handlePickImage = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      setProfileData(prev => ({ ...prev, photoURL: result.assets[0].uri }));
+    }
+  };
+
+  const addDependent = () => {
+    if (!newDependentName.trim()) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const newDep = { name: newDependentName.trim(), allergies: [] };
+    setProfileData(prev => ({
+      ...prev,
+      dependents: [...prev.dependents, newDep]
+    }));
+    setNewDependentName('');
+  };
+
+  const removeDependent = (name) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setProfileData(prev => ({
+      ...prev,
+      dependents: prev.dependents.filter(d => d.name !== name)
+    }));
+  };
+
+  const handleSave = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setSaving(true);
+    try {
+      const docRef = doc(db, 'users', user.uid);
+      await setDoc(docRef, profileData, { merge: true });
+      Alert.alert("Success", "Tactical profile synced!");
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Sync failed.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    try {
+      await signOut(auth);
+    } catch (error) {
+      Alert.alert("Error", "Could not sign out.");
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: 60, paddingHorizontal: 20 }]}>
+        <View style={{ alignItems: 'center', marginBottom: 30 }}>
+          <Skeleton width={130} height={130} borderRadius={65} />
+        </View>
+        <Skeleton width={100} height={20} style={{ marginBottom: 10 }} />
+        <Skeleton width="100%" height={64} borderRadius={20} style={{ marginBottom: 20 }} />
+        <Skeleton width={100} height={20} style={{ marginBottom: 10 }} />
+        <Skeleton width="100%" height={64} borderRadius={20} style={{ marginBottom: 20 }} />
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
-        {/* Modern Stats Header */}
-        <View style={styles.premiumHeader}>
-          <View style={styles.headerTop}>
-             <View style={styles.brandBox}>
-                <ShieldCheck color="#10B981" size={24} />
-                <Text style={styles.brandText}>SAFEPLATE PRO</Text>
-             </View>
-             <View style={styles.userCircle}>
-                <Text style={styles.userInitial}>M</Text>
-             </View>
-          </View>
-
-          <View style={styles.scoreContainer}>
-            <View style={styles.scoreInfo}>
-              <Text style={styles.scoreLabel}>SAFETY COMPLIANCE</Text>
-              <Text style={styles.scoreValue}>98.4%</Text>
-            </View>
-            <View style={styles.scoreCircle}>
-               <LayoutDashboard color="#10B981" size={28} />
-            </View>
-          </View>
-
-          <View style={styles.miniStats}>
-            <View style={styles.miniStatItem}>
-              <Text style={styles.miniStatVal}>{totalScans}</Text>
-              <Text style={styles.miniStatLab}>Total Scans</Text>
-            </View>
-            <View style={styles.miniStatDivider} />
-            <View style={styles.miniStatItem}>
-              <Text style={styles.miniStatVal}>{alertCount}</Text>
-              <Text style={styles.miniStatLab}>Alerts</Text>
-            </View>
-          </View>
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Command Identity</Text>
+          <Text style={[styles.headerSub, { color: theme.subtext }]}>Manage profiles and appearance</Text>
         </View>
 
-        {/* Community Alerts - Sleeker Style */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Global Risk Alerts</Text>
-          <View style={styles.liveIndicator}>
-            <View style={styles.pulseDot} />
-            <Text style={styles.liveText}>LIVE FEED</Text>
-          </View>
+        <View style={styles.photoSection}>
+          <Pressable onPress={handlePickImage} style={[styles.photoContainer, { shadowColor: theme.primary }]}>
+            {profileData.photoURL ? (
+              <Image source={{ uri: profileData.photoURL }} style={[styles.photo, { borderColor: theme.card }]} />
+            ) : (
+              <View style={[styles.photoPlaceholder, { backgroundColor: theme.card }]}>
+                <User color={theme.subtext} size={60} />
+              </View>
+            )}
+            <View style={[styles.cameraBtn, { backgroundColor: theme.primary, borderColor: theme.bg }]}>
+              <Camera color="#FFF" size={16} />
+            </View>
+          </Pressable>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.alertTray}>
-          <View style={[styles.alertCard, { backgroundColor: '#FEF2F2' }]}>
-            <AlertCircle color="#EF4444" size={18} />
-            <Text style={styles.alertCardText}>Recall: Peanut trace in Brand X</Text>
+        <View style={styles.form}>
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.subtext }]}>Full Name</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <User color={theme.primary} size={20} style={styles.inputIcon} />
+              <TextInput 
+                style={[styles.input, { color: theme.text }]}
+                value={profileData.displayName}
+                onChangeText={(val) => setProfileData(p => ({...p, displayName: val}))}
+                placeholder="Name"
+                placeholderTextColor={theme.subtext}
+              />
+            </View>
           </View>
-          <View style={[styles.alertCard, { backgroundColor: '#FFFBEB' }]}>
-            <Info color="#F59E0B" size={18} />
-            <Text style={styles.alertCardText}>New: Dairy-free Cheese guide</Text>
-          </View>
-          <View style={[styles.alertCard, { backgroundColor: '#EFF6FF' }]}>
-            <ShieldCheck color="#3B82F6" size={18} />
-            <Text style={styles.alertCardText}>Policy: Sesame is now a Major Allergen</Text>
-          </View>
-          <View style={[styles.alertCard, { backgroundColor: '#F0FDF4' }]}>
-            <Info color="#10B981" size={18} />
-            <Text style={styles.alertCardText}>Update: 5 New Safe-Restaurants added</Text>
-          </View>
-          <View style={[styles.alertCard, { backgroundColor: '#F5F3FF' }]}>
-            <AlertCircle color="#8B5CF6" size={18} />
-            <Text style={styles.alertCardText}>Hidden: Soy found in 'GF' Flour brand</Text>
-          </View>
-        </ScrollView>
 
-        <Text style={[styles.sectionTitle, { marginTop: -10 }]}>Biological Profile</Text>
-        <Text style={styles.sectionSub}>Select active allergens for AI monitoring</Text>
-        
-        <View style={styles.allergyGrid}>
-          {Object.keys(ALLERGENS).map((allergy) => {
-            const isSelected = selectedAllergies.includes(allergy);
-            const Icon = ALLERGEN_ICONS[allergy];
-            return (
-              <Pressable
-                key={allergy}
-                onPress={() => toggleAllergy(allergy)}
-                style={[styles.allergyCard, isSelected && styles.allergyCardActive]}
-              >
-                <View style={[styles.iconBox, isSelected && styles.iconBoxActive]}>
-                  <Icon size={24} color={isSelected ? '#FFF' : '#64748B'} />
-                </View>
-                <Text style={[styles.allergyName, isSelected && styles.allergyNameActive]}>{allergy}</Text>
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.subtext }]}>Family Profiles (Dependents)</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: theme.card, borderColor: theme.border, marginBottom: 10 }]}>
+              <Users color={theme.primary} size={20} style={styles.inputIcon} />
+              <TextInput 
+                style={[styles.input, { color: theme.text }]}
+                value={newDependentName}
+                onChangeText={setNewDependentName}
+                placeholder="Child's Name"
+                placeholderTextColor={theme.subtext}
+                onSubmitEditing={addDependent}
+              />
+              <Pressable onPress={addDependent} style={[styles.miniAddBtn, { backgroundColor: theme.primary }]}>
+                <Plus color="#FFF" size={18} />
               </Pressable>
-            );
-          })}
+            </View>
+            
+            <View style={styles.depList}>
+              {profileData.dependents.map(dep => (
+                <View key={dep.name} style={[styles.depPill, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <Text style={[styles.depText, { color: theme.text }]}>{dep.name}</Text>
+                  <Pressable onPress={() => removeDependent(dep.name)}>
+                    <X color={theme.danger} size={14} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.subtext }]}>Interface Theme</Text>
+            <Pressable 
+              onPress={() => { Haptics.selectionAsync(); toggleTheme(); }}
+              style={[styles.inputWrapper, { backgroundColor: theme.card, borderColor: theme.border }]}
+            >
+              {themeMode === 'dark' ? <Moon color={theme.primary} size={20} style={styles.inputIcon} /> : <Sun color={theme.primary} size={20} style={styles.inputIcon} />}
+              <Text style={[styles.input, { color: theme.text, paddingTop: 18 }]}>{themeMode === 'dark' ? 'Dark Mode' : 'Light Mode'}</Text>
+              <ChevronRight color={theme.subtext} size={20} />
+            </Pressable>
+          </View>
+
+          <Pressable 
+            style={[styles.saveBtn, { backgroundColor: theme.primary, shadowColor: theme.primary }, saving && styles.disabledBtn]} 
+            onPress={handleSave}
+            disabled={saving}
+          >
+            {saving ? <ActivityIndicator color="#FFF" /> : <><Save color="#FFF" size={20} /><Text style={styles.saveBtnText}>Secure Sync</Text></>}
+          </Pressable>
+
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+          <Pressable onPress={handleSignOut} style={[styles.signOutBtn, { backgroundColor: theme.themeMode === 'dark' ? 'rgba(244, 63, 94, 0.05)' : 'rgba(225, 29, 72, 0.05)', borderColor: theme.themeMode === 'dark' ? 'rgba(244, 63, 94, 0.1)' : 'rgba(225, 29, 72, 0.1)' }]}>
+            <LogOut color={theme.danger} size={20} />
+            <Text style={[styles.signOutText, { color: theme.danger }]}>Terminate Session</Text>
+          </Pressable>
         </View>
-
-        <Text style={styles.sectionTitle}>Smart Modules</Text>
-        <View style={styles.actionGrid}>
-          <Pressable onPress={() => navigation.navigate('Scanner')} style={[styles.actionBtn, {backgroundColor: '#1E293B'}]}>
-             <View style={styles.actionIconBg}><ArrowRight color="#10B981" size={20} /></View>
-             <Text style={styles.actionBtnTextPrimary}>Scanner</Text>
-          </Pressable>
-
-          <Pressable onPress={() => navigation.navigate('Chat')} style={styles.actionBtn}>
-             <Bot color="#4A90E2" size={24} />
-             <Text style={styles.actionBtnText}>AI Chat</Text>
-          </Pressable>
-
-          <Pressable onPress={() => navigation.navigate('Passport')} style={styles.actionBtn}>
-             <Globe color="#4A90E2" size={24} />
-             <Text style={styles.actionBtnText}>Passport</Text>
-          </Pressable>
-
-          <Pressable onPress={() => navigation.navigate('History')} style={styles.actionBtn}>
-             <Clock color="#4A90E2" size={24} />
-             <Text style={styles.actionBtnText}>History</Text>
-          </Pressable>
-        </View>
-
-        <Pressable onPress={() => navigation.navigate('Emergency')} style={styles.sosBar}>
-           <AlertCircle color="#FFF" size={22} />
-           <Text style={styles.sosBarText}>EMERGENCY SOS DASHBOARD</Text>
-           <ArrowRight color="#FFF" size={18} />
-        </Pressable>
 
       </ScrollView>
     </View>
@@ -151,52 +235,34 @@ export default function ProfileScreen({ navigation, selectedAllergies, setSelect
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 40 },
+  container: { flex: 1 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 130 },
+  header: { marginBottom: 30 },
+  headerTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
+  headerSub: { fontSize: 14, marginTop: 4, fontWeight: '600' },
   
-  premiumHeader: { backgroundColor: '#1E293B', borderRadius: 32, padding: 24, marginBottom: 30, elevation: 8, shadowColor: '#1E293B', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 20 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
-  brandBox: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  brandText: { color: '#FFF', fontSize: 14, fontWeight: '900', letterSpacing: 1 },
-  userCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#334155', justifyContent: 'center', alignItems: 'center' },
-  userInitial: { color: '#10B981', fontWeight: 'bold' },
+  photoSection: { alignItems: 'center', marginBottom: 30 },
+  photoContainer: { width: 130, height: 130, borderRadius: 65, position: 'relative', elevation: 10, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 15 },
+  photo: { width: 130, height: 130, borderRadius: 65, borderWidth: 4 },
+  photoPlaceholder: { width: 130, height: 130, borderRadius: 65, justifyContent: 'center', alignItems: 'center', borderWidth: 4, borderColor: 'rgba(255,255,255,0.05)' },
+  cameraBtn: { position: 'absolute', bottom: 5, right: 5, width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 4 },
   
-  scoreContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  scoreLabel: { color: '#94A3B8', fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-  scoreValue: { color: '#FFF', fontSize: 42, fontWeight: '900' },
-  scoreCircle: { width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(16, 185, 129, 0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)' },
+  form: { gap: 24 },
+  inputGroup: { gap: 10 },
+  label: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5, marginLeft: 4 },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', borderRadius: 20, paddingHorizontal: 16, height: 64, borderWidth: 1 },
+  inputIcon: { marginRight: 15 },
+  input: { flex: 1, fontSize: 16, fontWeight: '700' },
+  miniAddBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   
-  miniStats: { flexDirection: 'row', gap: 20, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)', paddingTop: 20 },
-  miniStatItem: { flex: 1 },
-  miniStatVal: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  miniStatLab: { color: '#94A3B8', fontSize: 11 },
-  miniStatDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.05)' },
+  depList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  depPill: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },
+  depText: { fontSize: 13, fontWeight: '800' },
 
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  sectionTitle: { fontSize: 22, fontWeight: '900', color: '#1E293B', letterSpacing: -0.5 },
-  sectionSub: { fontSize: 14, color: '#64748B', marginBottom: 20 },
-  liveIndicator: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  pulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
-  liveText: { fontSize: 11, fontWeight: '900', color: '#EF4444' },
-  
-  alertTray: { marginBottom: 30 },
-  alertCard: { padding: 16, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 15, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' },
-  alertCardText: { color: '#1E293B', fontSize: 14, fontWeight: '600' },
-
-  allergyGrid: { flexDirection: 'row', gap: 12, marginBottom: 30 },
-  allergyCard: { flex: 1, backgroundColor: '#FFF', borderRadius: 24, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#F1F5F9', elevation: 2 },
-  allergyCardActive: { backgroundColor: '#10B981', borderColor: '#10B981' },
-  iconBox: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  iconBoxActive: { backgroundColor: 'rgba(255,255,255,0.2)' },
-  allergyName: { fontSize: 14, fontWeight: '700', color: '#64748B' },
-  allergyNameActive: { color: '#FFF' },
-
-  actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 15 },
-  actionBtn: { width: (width - 52) / 2, height: 110, backgroundColor: '#FFF', borderRadius: 24, padding: 20, justifyContent: 'space-between', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10 },
-  actionIconBg: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
-  actionBtnText: { fontSize: 16, fontWeight: '800', color: '#1E293B' },
-  actionBtnTextPrimary: { fontSize: 16, fontWeight: '800', color: '#FFF' },
-
-  sosBar: { backgroundColor: '#EF4444', borderRadius: 24, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 15, elevation: 4 },
-  sosBarText: { flex: 1, color: '#FFF', fontSize: 14, fontWeight: '900', letterSpacing: 1 }
+  saveBtn: { height: 64, borderRadius: 22, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 10, elevation: 5 },
+  saveBtnText: { color: '#FFF', fontSize: 16, fontWeight: '900' },
+  disabledBtn: { opacity: 0.7 },
+  divider: { height: 1, marginVertical: 15 },
+  signOutBtn: { flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 24, borderWidth: 1, gap: 12 },
+  signOutText: { fontSize: 16, fontWeight: '800' }
 });

@@ -8,29 +8,21 @@ import {
   ScrollView, 
   KeyboardAvoidingView, 
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  Animated
 } from 'react-native';
-import { Send, ChevronLeft, Bot, User } from 'lucide-react-native';
+import { Send, ChevronLeft, Bot, User, Sparkles, AlertCircle } from 'lucide-react-native';
 import { getChatResponse } from '../utils/aiService';
+import { useTheme } from '../utils/ThemeContext';
 
 export default function ChatScreen({ navigation, selectedAllergies: profileAllergies }) {
+  const { theme } = useTheme();
   const [messages, setMessages] = useState([
-    { id: 1, text: "Hi! I'm your AI Assistant. I can check dishes, suggest safe recipes, translate foreign labels, and decode E-Numbers! What allergies should I watch out for?", isBot: true }
+    { id: 1, text: `Hello! I'm your SafePlate assistant. I've analyzed your profile (${profileAllergies.length > 0 ? profileAllergies.join(', ') : 'No allergies set'}). How can I help you today?`, isBot: true }
   ]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [userAllergies, setUserAllergies] = useState(profileAllergies.join(', '));
-  const [step, setStep] = useState(profileAllergies.length > 0 ? 'DISH' : 'ALLERGIES');
   const scrollViewRef = useRef();
-
-  useEffect(() => {
-    if (profileAllergies.length > 0) {
-      setMessages([
-        { id: 1, text: `Hello! I see you're allergic to ${profileAllergies.join(', ')}. I can check dishes, suggest safe recipes, translate foreign labels, or decode E-Numbers. How can I help?`, isBot: true }
-      ]);
-      setStep('DISH');
-    }
-  }, []);
 
   const handleSend = async () => {
     if (!inputText.trim() || loading) return;
@@ -41,47 +33,36 @@ export default function ChatScreen({ navigation, selectedAllergies: profileAller
     setInputText('');
     setLoading(true);
 
-    let botResponse = "";
-
-    if (step === 'ALLERGIES') {
-      setUserAllergies(currentInput);
-      botResponse = `Got it. I'll watch out for: ${currentInput}. How can I help you today? You can ask for a recipe, decode an E-Number, or check a dish.`;
-      setStep('DISH');
-      
+    try {
+      const botResponse = await getChatResponse(currentInput, profileAllergies);
       const botMessage = { id: Date.now() + 1, text: botResponse, isBot: true };
       setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error("Chat Error:", error);
+      const botMessage = { id: Date.now() + 1, text: "I encountered a minor glitch. Could you try asking that again?", isBot: true };
+      setMessages(prev => [...prev, botMessage]);
+    } finally {
       setLoading(false);
-    } else {
-      try {
-        const allergiesToUse = userAllergies || (profileAllergies && profileAllergies.length > 0 ? profileAllergies.join(', ') : "none");
-        botResponse = await getChatResponse(currentInput, allergiesToUse.split(', '));
-      } catch (error) {
-        console.error("Chat Error:", error);
-        botResponse = "Oops! I encountered an error while thinking. Please try again.";
-      } finally {
-        const botMessage = { id: Date.now() + 1, text: botResponse, isBot: true };
-        setMessages(prev => [...prev, botMessage]);
-        setLoading(false);
-      }
     }
   };
 
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      style={[styles.container, { backgroundColor: theme.bg }]}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.bg, borderBottomColor: theme.border }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ChevronLeft color="#2D3748" size={28} />
+          <ChevronLeft color={theme.text} size={28} />
         </Pressable>
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>AI Assistant</Text>
-          <Text style={styles.headerSubtitle}>
-            {step === 'ALLERGIES' ? 'Setup Profile' : 'Multi-Tool Mode Active'}
-          </Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>AI Assistant</Text>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: theme.safe }]} />
+            <Text style={[styles.statusText, { color: theme.subtext }]}>Gemini 2.0 Flash Active</Text>
+          </View>
         </View>
+        <Bot color={theme.primary} size={24} />
       </View>
 
       <ScrollView 
@@ -89,14 +70,12 @@ export default function ChatScreen({ navigation, selectedAllergies: profileAller
         style={styles.chatContainer}
         contentContainerStyle={styles.chatContent}
         onContentSizeChange={() => scrollViewRef.current.scrollToEnd({ animated: true })}
+        showsVerticalScrollIndicator={false}
       >
         {messages.map((msg) => (
           <View key={msg.id} style={[styles.messageRow, msg.isBot ? styles.botRow : styles.userRow]}>
-            <View style={[styles.avatar, msg.isBot ? styles.botAvatar : styles.userAvatar]}>
-              {msg.isBot ? <Bot color="#FFF" size={16} /> : <User color="#FFF" size={16} />}
-            </View>
-            <View style={[styles.bubble, msg.isBot ? styles.botBubble : styles.userBubble]}>
-              <Text style={[styles.messageText, msg.isBot ? styles.botText : styles.userText]}>
+            <View style={[styles.bubble, { shadowColor: theme.shadow }, msg.isBot ? [styles.botBubble, { backgroundColor: theme.botBubble }] : [styles.userBubble, { backgroundColor: theme.userBubble }]]}>
+              <Text style={[styles.messageText, msg.isBot ? { color: theme.text } : { color: '#FFF' }]}>
                 {msg.text}
               </Text>
             </View>
@@ -104,155 +83,57 @@ export default function ChatScreen({ navigation, selectedAllergies: profileAller
         ))}
         {loading && (
           <View style={[styles.messageRow, styles.botRow]}>
-            <View style={[styles.avatar, styles.botAvatar]}>
-              <Bot color="#FFF" size={16} />
-            </View>
-            <View style={[styles.bubble, styles.botBubble, styles.loadingBubble]}>
-              <ActivityIndicator color="#4A90E2" size="small" />
+            <View style={[styles.bubble, styles.botBubble, styles.loadingBubble, { backgroundColor: theme.botBubble }]}>
+              <ActivityIndicator color={theme.primary} size="small" />
             </View>
           </View>
         )}
       </ScrollView>
 
-      <View style={styles.inputArea}>
-        <TextInput 
-          style={styles.input}
-          placeholder={step === 'ALLERGIES' ? "Type your allergies..." : "Ask me anything..."}
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-        />
-        <Pressable 
-          onPress={handleSend}
-          style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
-        >
-          <Send color="#FFF" size={20} />
-        </Pressable>
+      <View style={[styles.inputArea, { backgroundColor: theme.bg }]}>
+        <View style={[styles.inputWrapper, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <TextInput 
+            style={[styles.input, { color: theme.text }]}
+            placeholder="Ask about ingredients or dishes..."
+            placeholderTextColor={theme.subtext}
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+          />
+          <Pressable 
+            onPress={handleSend}
+            style={[styles.sendButton, { backgroundColor: theme.primary }, !inputText.trim() && [styles.sendButtonDisabled, { backgroundColor: theme.border }]]}
+          >
+            <Send color="#FFF" size={20} />
+          </Pressable>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F7FAFC',
-  },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 15,
-    paddingHorizontal: 20,
-    backgroundColor: '#FFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  backButton: {
-    marginRight: 15,
-  },
-  headerTitleContainer: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2D3748',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: '#718096',
-  },
-  chatContainer: {
-    flex: 1,
-  },
-  chatContent: {
-    padding: 20,
-    paddingBottom: 30,
-  },
-  messageRow: {
-    flexDirection: 'row',
-    marginBottom: 20,
-    maxWidth: '85%',
-  },
-  botRow: {
-    alignSelf: 'flex-start',
-  },
-  userRow: {
-    alignSelf: 'flex-end',
-    flexDirection: 'row-reverse',
-  },
-  avatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginHorizontal: 8,
-  },
-  botAvatar: {
-    backgroundColor: '#4A90E2',
-  },
-  userAvatar: {
-    backgroundColor: '#2D3748',
-  },
-  bubble: {
-    padding: 12,
-    borderRadius: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  botBubble: {
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: 2,
-  },
-  userBubble: {
-    backgroundColor: '#4A90E2',
-    borderTopRightRadius: 2,
-  },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  botText: {
-    color: '#2D3748',
-  },
-  userText: {
-    color: '#FFF',
-  },
-  loadingBubble: {
-    paddingHorizontal: 20,
-  },
-  inputArea: {
-    padding: 15,
-    backgroundColor: '#FFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-  },
-  input: {
-    flex: 1,
-    backgroundColor: '#F7FAFC',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    marginRight: 10,
-    fontSize: 15,
-    maxHeight: 100,
-  },
-  sendButton: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    backgroundColor: '#4A90E2',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#CBD5E0',
-  },
+  container: { flex: 1 },
+  header: { paddingTop: 60, paddingBottom: 20, paddingHorizontal: 25, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
+  backButton: { marginRight: 15 },
+  headerTitleContainer: { flex: 1 },
+  headerTitle: { fontSize: 20, fontWeight: '900', letterSpacing: -0.5 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
+  statusText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  chatContainer: { flex: 1 },
+  chatContent: { padding: 20, paddingBottom: 120 },
+  messageRow: { flexDirection: 'row', marginBottom: 16, maxWidth: '85%' },
+  botRow: { alignSelf: 'flex-start' },
+  userRow: { alignSelf: 'flex-end', justifyContent: 'flex-end' },
+  bubble: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, elevation: 2, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  botBubble: { borderTopLeftRadius: 4 },
+  userBubble: { borderBottomRightRadius: 4 },
+  messageText: { fontSize: 15, lineHeight: 22, fontWeight: '500' },
+  loadingBubble: { paddingHorizontal: 20, justifyContent: 'center' },
+  inputArea: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 110 },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', borderRadius: 30, paddingHorizontal: 8, paddingVertical: 8, borderWidth: 1 },
+  input: { flex: 1, paddingHorizontal: 15, paddingVertical: 8, fontSize: 15, maxHeight: 100, fontWeight: '600' },
+  sendButton: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
+  sendButtonDisabled: { shadowOpacity: 0, elevation: 0 },
 });

@@ -14,6 +14,9 @@ export const ALLERGENS = {
     'malt', 'oats', 'gluten', 'flour', 'all-purpose flour', 'bread flour',
     'durum', 'farina', 'graham flour', 'kamut', 'seitan', 'triticale'
   ],
+  Sesame: [
+    'sesame', 'sesame seed', 'sesame seeds', 'tahini', 'til', 'benne', 'gingelly'
+  ],
 };
 
 export const detectAllergens = (text, selectedAllergens) => {
@@ -21,14 +24,21 @@ export const detectAllergens = (text, selectedAllergens) => {
   const detected = new Set();
 
   selectedAllergens.forEach((allergen) => {
-    const keywords = ALLERGENS[allergen] || [];
+    // Case-insensitive lookup in the ALLERGENS registry
+    const registryKey = Object.keys(ALLERGENS).find(
+      key => key.toLowerCase() === allergen.toLowerCase()
+    );
+    
+    // If it's in our registry, use the known keywords. 
+    // Otherwise, treat the allergen name itself as the keyword.
+    const keywords = registryKey ? ALLERGENS[registryKey] : [allergen.toLowerCase()];
+    
     const hasMatch = keywords.some((keyword) => {
       // Use word boundaries to prevent partial matches.
       const regex = new RegExp(`\\b${keyword}\\b`, 'i');
       
       // Specific fix for "cocoa butter" which is dairy-free
       if (keyword === 'butter' && normalizedText.includes('cocoa butter')) {
-        // Only return true if there is a "butter" that is NOT part of "cocoa butter"
         const matches = [...normalizedText.matchAll(/\bbutter\b/gi)];
         return matches.some(m => {
           const beforeMatch = normalizedText.substring(0, m.index);
@@ -40,7 +50,7 @@ export const detectAllergens = (text, selectedAllergens) => {
     });
     
     if (hasMatch) {
-      detected.add(allergen);
+      detected.add(registryKey || allergen);
     }
   });
 
